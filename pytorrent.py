@@ -2,10 +2,11 @@
 import re
 import os
 
-from itertools import izip_longest
+from datetime import datetime
 
 # Inheriting from object creates a "new-style" class (post 2.1).
-# This enables properties and descriptors.
+# Among other things, this enables properties (example below - # piece_length)
+# and descriptors.
 class PyTorrent(object):
     """Provide a simple interface to bencoded bittorrent files.
 
@@ -29,25 +30,33 @@ class PyTorrent(object):
 
     """
 
-    tor_file = ""
+    torrent_file = ""
     torrent_data = {}
 
     created_by = ""
-    creation_date = ""
     comment = ""
 
     announce = []           # http://bittorrent.org/beps/bep_0012.html
     private = 0
 
+    name = ""
     files = {}
     pieces = []
     piece_length = 0
 
-    def __init__(self, path):
-        self.tor_file = path
+    def getDate(self):
+        return self._creation_date.strftime("%a. %b. %d, %Y %H:%M")
 
-        tor_file_len = os.path.getsize(self.tor_file)
-        with open(self.tor_file, 'r') as f:
+    def setDate(self, value):
+        self._creation_date = datetime.fromtimestamp(value)
+
+    creation_date = property(getDate, setDate, doc="The date this torrent was created.")
+
+    def __init__(self, path):
+        self.torrent_file = path
+
+        tor_file_len = os.path.getsize(self.torrent_file)
+        with open(self.torrent_file, 'r') as f:
             self.parse(f.read(tor_file_len))
 
         data = self.torrent_data
@@ -67,9 +76,25 @@ class PyTorrent(object):
         self.pieces = [ pieces[i:i+20] for i in range(0, len(pieces), 20) ]
         self.piece_length = info['piece length']
         self.private = info.get("private", 0)
+        self.name = info['name']
 
     def __del__(self):
         pass
+
+    def __str__(self):
+        return ("File: {filename}\n"
+                "Name: {name}\n"
+                "Date: {date}\n"
+                "Client: {client}\n"
+                "Tracker(s){private}: {tracker}\n"
+                "Comment: {comment}\n").format(
+                        filename=self.torrent_file,
+                        name=self.name,
+                        client=self.created_by,
+                        date=self.creation_date,
+                        tracker=self.announce,
+                        private=(" (private)" if self.private else ""),
+                        comment=self.comment)
 
     def generateFileList(self):
         """Populates the files member.
