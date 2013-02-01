@@ -2,6 +2,10 @@
 import re
 import os
 
+from itertools import izip_longest
+
+# Inheriting from object creates a "new-style" class (post 2.1).
+# This enables properties and descriptors.
 class PyTorrent(object):
     """Provide a simple interface to bencoded bittorrent files.
 
@@ -14,8 +18,14 @@ class PyTorrent(object):
     Exposed information
     * created_by: the client that created the torrent
     * creation_date: the date on which the torrent was created
+    * comment: any comment included with the torrent
+    
     * announce: a list of lists of trackers
+    * private: 1 indicates torrent is tracked by private tracker
+
     * files: file information by file path
+    * pieces: a list of 20-byte SHA1 hash values
+    * piece_length: the length of each piece
 
     """
 
@@ -24,8 +34,14 @@ class PyTorrent(object):
 
     created_by = ""
     creation_date = ""
-    announce = ""           # http://bittorrent.org/beps/bep_0012.html
+    comment = ""
+
+    announce = []           # http://bittorrent.org/beps/bep_0012.html
+    private = 0
+
     files = {}
+    pieces = []
+    piece_length = 0
 
     def __init__(self, path):
         self.tor_file = path
@@ -34,16 +50,23 @@ class PyTorrent(object):
         with open(self.tor_file, 'r') as f:
             self.parse(f.read(tor_file_len))
 
-        self.created_by = self.torrent_data['created by']
-        self.creation_date = self.torrent_data['creation date']
+        data = self.torrent_data
 
+        self.created_by = data.get("created by", "")
+        self.creation_date = data.get("creation date", "")
+        self.comment = data.get("comment", "")
+        
         # For convenience, create same data structure (list of lists)
         # for both announce and announce-list
-        self.announce = (self.torrent_data['announce-list']
-                if "announce-list" in self.torrent_data
-                else [[self.torrent_data['announce']]])
+        self.announce = data.get("announce-list", [[data['announce']]])
 
         self.generateFileList()
+
+        info = data['info']
+        pieces = bytearray(info['pieces'])
+        self.pieces = [ pieces[i:i+20] for i in range(0, len(pieces), 20) ]
+        self.piece_length = info['piece length']
+        self.private = info.get("private", 0)
 
     def __del__(self):
         pass
@@ -56,6 +79,7 @@ class PyTorrent(object):
         info = self.torrent_data['info']
         name = info['name']
         if "files" in info:
+            # Prepend "name" (of directory) to file path
             self.files = dict(("{0}/{1}".format(name, '/'.join(f['path'])), f)
                     for f in info['files'])
         else:
