@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 
 # Inheriting from object creates a "new-style" class (post 2.1).
-# Among other things, this enables properties (example below - # piece_length)
+# Among other things, this enables properties (example below - creation_date)
 # and descriptors.
 class PyTorrent(object):
     """Provide a simple interface to bencoded bittorrent files.
@@ -30,31 +30,10 @@ class PyTorrent(object):
 
     """
 
-    torrent_file = ""
-    torrent_data = {}
-
-    created_by = ""
-    comment = ""
-
-    announce = []           # http://bittorrent.org/beps/bep_0012.html
-    private = 0
-
-    name = ""
-    files = {}
-    pieces = []
-    piece_length = 0
-
-    def getDate(self):
-        return self._creation_date.strftime("%a. %b. %d, %Y %H:%M")
-
-    def setDate(self, value):
-        self._creation_date = datetime.fromtimestamp(value)
-
-    creation_date = property(getDate, setDate, doc="The date this torrent was created.")
-
     def __init__(self, path):
         self.torrent_file = path
 
+        self.torrent_data = {}
         tor_file_len = os.path.getsize(self.torrent_file)
         with open(self.torrent_file, 'r') as f:
             self.parse(f.read(tor_file_len))
@@ -69,6 +48,7 @@ class PyTorrent(object):
         # for both announce and announce-list
         self.announce = data.get("announce-list", [[data['announce']]])
 
+        self.files = {}
         self.generateFileList()
 
         info = data['info']
@@ -77,6 +57,14 @@ class PyTorrent(object):
         self.piece_length = info['piece length']
         self.private = info.get("private", 0)
         self.name = info['name']
+
+        self.creation_date = property(self.getDate, self.setDate, doc="The date this torrent was created.")
+
+    def getDate(self):
+        return self._creation_date.strftime("%a. %b. %d, %Y %H:%M")
+
+    def setDate(self, value):
+        self._creation_date = datetime.fromtimestamp(value)
 
     def __del__(self):
         pass
